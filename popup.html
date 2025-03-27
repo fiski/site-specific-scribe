@@ -27,14 +27,71 @@
     .brand-item {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-bottom: 5px;
       padding: 5px;
       border-bottom: 1px solid #eee;
     }
     
+    .brand-name {
+      flex-grow: 1;
+      margin-right: 5px;
+    }
+    
+    .brand-controls {
+      display: flex;
+      align-items: center;
+    }
+    
     .remove-btn {
       color: red;
       cursor: pointer;
+      margin-left: 8px;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 17px;
+    }
+    
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 17px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 13px;
+      width: 13px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: #4CAF50;
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(13px);
     }
     
     #add-brand-form {
@@ -59,11 +116,64 @@
     button:hover {
       background-color: #45a049;
     }
+    
+    .import-export {
+      margin-top: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .import-export button {
+      flex: 1;
+      margin: 0 5px;
+    }
+    
+    #import-modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.4);
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+    }
+    
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .close:hover {
+      color: black;
+    }
+    
+    #import-brands {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 10px;
+    }
+    
+    .brand-count {
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
   <h1>Vinted Brand Filter</h1>
-  <p>Brands to exclude from search results:</p>
+  <div id="brand-count" class="brand-count">Excluding 0 brands</div>
   
   <div id="brands-container">
     <!-- Brand items will be inserted here -->
@@ -73,6 +183,21 @@
     <input type="text" id="new-brand" placeholder="Add brand to exclude..." required>
     <button type="submit">Add</button>
   </form>
+  
+  <div class="import-export">
+    <button id="export-btn" type="button">Export List</button>
+    <button id="import-btn" type="button">Import List</button>
+  </div>
+  
+  <div id="import-modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Import Brands</h2>
+      <p>Paste your list of brands (one per line):</p>
+      <textarea id="import-brands"></textarea>
+      <button id="save-import" type="button">Save</button>
+    </div>
+  </div>
   
   <p><small>Changes apply automatically when you browse Vinted.</small></p>
   
