@@ -31,24 +31,30 @@ function filterProducts() {
     // If no brands to exclude, no need to filter
     if (excludedBrands.length === 0) return;
     
+    console.log('Filtering brands:', excludedBrands);
+    
     // Get all catalog items on the page
-    const catalogItems = document.querySelectorAll('.feed-grid__item');
+    const catalogItems = document.querySelectorAll('[data-testid^="grid-item"]');
     
     catalogItems.forEach(item => {
-      // Find the brand element within the item
-      const brandElement = item.querySelector('.web_ui__Cell__subtitle');
+      // Find the brand element within the item using the updated selector
+      const brandElement = item.querySelector('.new-item-box__description p[data-testid$="--description-title"]');
       
       if (brandElement) {
         const brandText = brandElement.textContent.trim();
+        console.log('Found brand:', brandText);
         
         // Check if this item's brand is in our excluded list
         for (const brand of excludedBrands) {
           if (brandText.toLowerCase().includes(brand.toLowerCase())) {
             // Hide the item
+            console.log('Hiding item with brand:', brandText);
             item.style.display = 'none';
             break;
           }
         }
+      } else {
+        console.log('Brand element not found in grid item');
       }
     });
   });
@@ -66,8 +72,17 @@ new MutationObserver(() => {
   const url = location.href;
   if (url !== lastUrl) {
     lastUrl = url;
+    console.log('URL changed, filtering products...');
     
     // Wait a bit for the page to load content
     setTimeout(filterProducts, 1000);
   }
 }).observe(document, {subtree: true, childList: true});
+
+// Add a message listener to handle immediate filtering when brands are updated
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.action === 'brandsUpdated') {
+    console.log('Brands updated, re-filtering products...');
+    filterProducts();
+  }
+});

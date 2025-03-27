@@ -58,6 +58,7 @@ function addBrand(brand) {
       
       chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
         loadBrands(); // Refresh the list
+        notifyContentScript();
       });
     } else {
       alert('This brand is already in your exclude list.');
@@ -72,6 +73,16 @@ function removeBrand(brand) {
     
     chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
       loadBrands(); // Refresh the list
+      notifyContentScript();
     });
+  });
+}
+
+// Notify content script that brands have been updated
+function notifyContentScript() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'brandsUpdated' });
+    }
   });
 }
