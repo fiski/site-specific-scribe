@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Initialize theme
   initTheme();
   
+  // Initialize site toggles
+  initSiteToggles();
+  
   // Set up the form submit event
   document.getElementById('add-brand-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -27,6 +30,15 @@ document.addEventListener('DOMContentLoaded', function() {
   // Set up theme toggle
   document.getElementById('theme-toggle').addEventListener('change', function(e) {
     toggleTheme(e.target.checked);
+  });
+  
+  // Set up site toggles
+  document.getElementById('vinted-toggle').addEventListener('change', function(e) {
+    updateSiteSettings('vinted', e.target.checked);
+  });
+  
+  document.getElementById('tradera-toggle').addEventListener('change', function(e) {
+    updateSiteSettings('tradera', e.target.checked);
   });
   
   // Set up export button
@@ -63,6 +75,37 @@ document.addEventListener('DOMContentLoaded', function() {
   // Request current stats from the active tab
   requestCurrentStats();
 });
+
+// Initialize site toggles based on saved settings
+function initSiteToggles() {
+  chrome.storage.sync.get({ siteSettings: { vinted: true, tradera: true } }, function(data) {
+    document.getElementById('vinted-toggle').checked = data.siteSettings.vinted;
+    document.getElementById('tradera-toggle').checked = data.siteSettings.tradera;
+  });
+}
+
+// Update site settings when toggles are changed
+function updateSiteSettings(site, enabled) {
+  chrome.storage.sync.get({ siteSettings: { vinted: true, tradera: true } }, function(data) {
+    const updatedSettings = {
+      ...data.siteSettings,
+      [site]: enabled
+    };
+    
+    chrome.storage.sync.set({ siteSettings: updatedSettings }, function() {
+      notifySiteSettingsChanged();
+    });
+  });
+}
+
+// Notify content script that site settings have changed
+function notifySiteSettingsChanged() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'siteSettingsUpdated' });
+    }
+  });
+}
 
 // Initialize theme based on saved preference
 function initTheme() {
@@ -306,7 +349,11 @@ function requestCurrentStats() {
 // Update statistics in the UI
 function updateStatistics(stats) {
   if (stats) {
-    document.getElementById('filtered-count').textContent = `Items filtered: ${stats.filteredCount}`;
+    let siteInfo = '';
+    if (stats.site) {
+      siteInfo = ` (${stats.site.charAt(0).toUpperCase() + stats.site.slice(1)})`;
+    }
+    document.getElementById('filtered-count').textContent = `Items filtered${siteInfo}: ${stats.filteredCount}`;
   }
 }
 
