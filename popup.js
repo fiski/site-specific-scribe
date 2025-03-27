@@ -3,6 +3,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Load saved brands when popup opens
   loadBrands();
   
+  // Initialize theme
+  initTheme();
+  
   // Set up the form submit event
   document.getElementById('add-brand-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -14,6 +17,16 @@ document.addEventListener('DOMContentLoaded', function() {
       addBrand(brandName);
       brandInput.value = '';
     }
+  });
+  
+  // Set up search functionality
+  document.getElementById('brand-search').addEventListener('input', function(e) {
+    filterBrandsList(e.target.value.trim().toLowerCase());
+  });
+  
+  // Set up theme toggle
+  document.getElementById('theme-toggle').addEventListener('change', function(e) {
+    toggleTheme(e.target.checked);
   });
   
   // Set up export button
@@ -39,7 +52,57 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Save imported brands
   document.getElementById('save-import').addEventListener('click', importBrands);
+  
+  // Listen for statistics updates from content script
+  chrome.runtime.onMessage.addListener(function(message) {
+    if (message.action === 'updateFilterStats') {
+      updateStatistics(message.stats);
+    }
+  });
+  
+  // Request current stats from the active tab
+  requestCurrentStats();
 });
+
+// Initialize theme based on saved preference
+function initTheme() {
+  chrome.storage.sync.get({ darkMode: false }, function(data) {
+    const darkModeEnabled = data.darkMode;
+    document.getElementById('theme-toggle').checked = darkModeEnabled;
+    toggleTheme(darkModeEnabled);
+  });
+}
+
+// Toggle between light and dark themes
+function toggleTheme(isDark) {
+  const html = document.documentElement;
+  
+  if (isDark) {
+    html.classList.add('dark');
+    html.classList.remove('light');
+  } else {
+    html.classList.add('light');
+    html.classList.remove('dark');
+  }
+  
+  // Save theme preference
+  chrome.storage.sync.set({ darkMode: isDark });
+}
+
+// Filter the brands list based on search input
+function filterBrandsList(searchText) {
+  const brandItems = document.querySelectorAll('.brand-item');
+  
+  brandItems.forEach(function(item) {
+    const brandName = item.querySelector('.brand-name').textContent.toLowerCase();
+    
+    if (brandName.includes(searchText)) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
 
 // Load brands from storage and display them
 function loadBrands() {
@@ -224,6 +287,27 @@ function importBrands() {
       notifyContentScript();
     });
   });
+}
+
+// Request current statistics from the active tab
+function requestCurrentStats() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (tabs[0]) {
+      chrome.tabs.sendMessage(tabs[0].id, { action: 'requestStats' }, function(response) {
+        // If we get a response, update the UI
+        if (response && response.stats) {
+          updateStatistics(response.stats);
+        }
+      });
+    }
+  });
+}
+
+// Update statistics in the UI
+function updateStatistics(stats) {
+  if (stats) {
+    document.getElementById('filtered-count').textContent = `Items filtered: ${stats.filteredCount}`;
+  }
 }
 
 // Notify content script that brands have been updated
