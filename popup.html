@@ -1,0 +1,81 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vinted Brand Filter</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 300px;
+      padding: 10px;
+    }
+    
+    h1 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    
+    #brands-container {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+      padding: 5px;
+    }
+    
+    .brand-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .remove-btn {
+      color: red;
+      cursor: pointer;
+    }
+    
+    #add-brand-form {
+      display: flex;
+      margin-top: 10px;
+    }
+    
+    #new-brand {
+      flex-grow: 1;
+      margin-right: 5px;
+      padding: 5px;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <h1>Vinted Brand Filter</h1>
+  <p>Brands to exclude from search results:</p>
+  
+  <div id="brands-container">
+    <!-- Brand items will be inserted here -->
+  </div>
+  
+  <form id="add-brand-form">
+    <input type="text" id="new-brand" placeholder="Add brand to exclude..." required>
+    <button type="submit">Add</button>
+  </form>
+  
+  <p><small>Changes apply automatically when you browse Vinted.</small></p>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
