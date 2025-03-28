@@ -122,9 +122,9 @@ function filterProducts() {
         if (shouldHide) {
           if (currentSite === 'tradera') {
             // For Tradera, find and remove the parent container entirely
-            const parentContainer = findParentContainer(item);
-            if (parentContainer) {
-              parentContainer.remove();
+            const emptyParentDiv = findEmptyParentDiv(item);
+            if (emptyParentDiv) {
+              emptyParentDiv.remove();
             } else {
               // Fallback to hiding if parent container not found
               item.style.display = 'none';
@@ -147,12 +147,21 @@ function filterProducts() {
   });
 }
 
-// Function to find the parent container for Tradera items
-function findParentContainer(item) {
-  // Look for the immediate parent with no class name (the empty div container)
-  const parent = item.parentElement;
-  if (parent && parent.className === '') {
-    return parent;
+// Function to find the empty parent div for Tradera items
+function findEmptyParentDiv(item) {
+  // First, find the item-card-new parent
+  let parent = item.parentElement;
+  while (parent && !parent.className.includes('item-card-new')) {
+    parent = parent.parentElement;
+  }
+  
+  // Now find the empty div parent
+  if (parent) {
+    parent = parent.parentElement;
+    // Check if this is the empty div (has no class name or just whitespace)
+    if (parent && parent.className.trim() === '') {
+      return parent;
+    }
   }
   return null;
 }
