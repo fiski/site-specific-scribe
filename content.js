@@ -120,8 +120,19 @@ function filterProducts() {
         }
         
         if (shouldHide) {
-          // Hide the item
-          item.style.display = 'none';
+          if (currentSite === 'tradera') {
+            // For Tradera, find and remove the parent container entirely
+            const parentContainer = findParentContainer(item);
+            if (parentContainer) {
+              parentContainer.remove();
+            } else {
+              // Fallback to hiding if parent container not found
+              item.style.display = 'none';
+            }
+          } else {
+            // For Vinted and others, just hide the item
+            item.style.display = 'none';
+          }
           currentFilteredCount++;
         } else {
           // Show the item (in case it was hidden before)
@@ -136,16 +147,27 @@ function filterProducts() {
   });
 }
 
+// Function to find the parent container for Tradera items
+function findParentContainer(item) {
+  // Look for the immediate parent with no class name (the empty div container)
+  const parent = item.parentElement;
+  if (parent && parent.className === '') {
+    return parent;
+  }
+  return null;
+}
+
 // Function to show all previously hidden items
 function showAllItems() {
-  // Logic depends on which site we're on
   if (currentSite === 'vinted') {
     const items = document.querySelectorAll('[data-testid^="grid-item"]');
     items.forEach(item => {
       item.style.display = '';
     });
   } else if (currentSite === 'tradera') {
-    const items = document.querySelectorAll('.item-card-new');
+    // For Tradera we need to refresh the page since we're removing elements
+    // However, this could be jarring for users, so let's just show hidden items
+    const items = document.querySelectorAll('.item-card-new[style*="display: none"]');
     items.forEach(item => {
       item.style.display = '';
     });
