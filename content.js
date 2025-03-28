@@ -121,10 +121,10 @@ function filterProducts() {
         
         if (shouldHide) {
           if (currentSite === 'tradera') {
-            // For Tradera, find and remove the parent container entirely
-            const emptyParentDiv = findEmptyParentDiv(item);
-            if (emptyParentDiv) {
-              emptyParentDiv.remove();
+            // For Tradera, find and remove the parent container completely
+            const parentContainer = findParentContainer(item);
+            if (parentContainer) {
+              parentContainer.remove();
             } else {
               // Fallback to hiding if parent container not found
               item.style.display = 'none';
@@ -147,22 +147,37 @@ function filterProducts() {
   });
 }
 
-// Function to find the empty parent div for Tradera items
-function findEmptyParentDiv(item) {
-  // First, find the item-card-new parent
-  let parent = item.parentElement;
-  while (parent && !parent.className.includes('item-card-new')) {
-    parent = parent.parentElement;
-  }
-  
-  // Now find the empty div parent
-  if (parent) {
-    parent = parent.parentElement;
-    // Check if this is the empty div (has no class name or just whitespace)
-    if (parent && parent.className.trim() === '') {
-      return parent;
+// Function to find the parent container for Tradera items
+function findParentContainer(item) {
+  // Check if we're starting with .item-card-new
+  let current = item;
+  if (!current.classList.contains('item-card-new')) {
+    // Find the item-card-new parent
+    while (current && !current.classList.contains('item-card-new')) {
+      current = current.parentElement;
     }
   }
+  
+  // Now find the top-level container
+  // Moving up to find either an empty div or a specific container
+  if (current) {
+    // Go one level up to get to the parent container
+    let parent = current.parentElement;
+    
+    // Check if this parent is a suitable container
+    if (parent) {
+      // Often the parent container is a div with no class or
+      // it might be inside a grid container
+      if (parent.className.trim() === '' || 
+          parent.classList.contains('col') ||
+          parent.classList.contains('col-md-6') ||
+          parent.classList.contains('col-lg-4')) {
+        return parent;
+      }
+    }
+  }
+  
+  // If we couldn't find a parent container, return null
   return null;
 }
 
