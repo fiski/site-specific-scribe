@@ -1,4 +1,3 @@
-
 // Configuration for the observer
 const observerConfig = {
   childList: true,
@@ -138,14 +137,15 @@ function filterProducts() {
       // Now process all items to hide at once
       itemsToHide.forEach(item => {
         if (currentSite === 'tradera') {
-          const parentContainer = findParentContainer(item);
-          if (parentContainer) {
-            parentContainer.remove();
+          // Find and remove the parent container for Tradera
+          const parentItemCard = findTraderaItemCard(item);
+          if (parentItemCard) {
+            parentItemCard.remove();
           } else {
             item.style.display = 'none';
           }
         } else {
-          // For Vinted and others, just hide the item
+          // For Vinted, just hide the item
           item.style.display = 'none';
         }
       });
@@ -159,49 +159,23 @@ function filterProducts() {
   });
 }
 
-// Function to find the parent container for Tradera items
-function findParentContainer(item) {
+// Function to find the Tradera item-card and its parent
+function findTraderaItemCard(element) {
   try {
-    // Check if we're starting with .item-card-new
-    let current = item;
+    // Start with the provided element
+    let current = element;
+    
+    // If not already an item-card-new, find the closest one
     if (!current.classList.contains('item-card-new')) {
-      // Find the item-card-new parent
-      while (current && !current.classList.contains('item-card-new')) {
-        current = current.parentElement;
-        if (!current) return null; // Safety check
-      }
+      current = current.closest('.item-card-new');
+      if (!current) return null;
     }
     
-    // Now find the top-level container
-    if (current) {
-      // Go up through the parent hierarchy to find the right container
-      let parent = current.parentElement;
-      
-      // Traverse up the DOM tree looking for suitable containers
-      while (parent) {
-        // Check if this parent is a suitable container
-        if (parent.className.trim() === '' || 
-            parent.classList.contains('col') ||
-            parent.classList.contains('col-md-6') ||
-            parent.classList.contains('col-lg-4') ||
-            parent.classList.contains('result-item')) {
-          return parent;
-        }
-        
-        // If we reach the body or main content div, stop looking
-        if (parent.tagName === 'BODY' || 
-            parent.id === 'main-content' || 
-            parent.classList.contains('container-fluid')) {
-          break;
-        }
-        
-        parent = parent.parentElement;
-      }
-    }
-    
-    return null;
+    // Find the parent container (usually a col-* or result-item)
+    const parent = current.closest('.col, .col-md-6, .col-lg-4, .result-item, .slick-slide');
+    return parent || current; // Return parent if found, otherwise the item-card itself
   } catch (error) {
-    console.error('Error in findParentContainer:', error);
+    console.error('Error in findTraderaItemCard:', error);
     return null;
   }
 }
@@ -215,7 +189,7 @@ function showAllItems() {
         item.style.display = '';
       });
     } else if (currentSite === 'tradera') {
-      // For Tradera we need to refresh the page since we're removing elements
+      // For Tradera we would need to refresh the page to restore removed elements
       // But we can at least show any hidden items that weren't removed
       const items = document.querySelectorAll('.item-card-new[style*="display: none"]');
       items.forEach(item => {
@@ -231,7 +205,7 @@ function showAllItems() {
 function updateFilterStats() {
   try {
     // Send the stats to the popup if it's open
-    chrome.runtime.sendMessage({ 
+    sendMessageWithRetry({ 
       action: 'updateFilterStats', 
       stats: { 
         filteredCount: filteredItemsCount,
@@ -245,6 +219,27 @@ function updateFilterStats() {
   }
 }
 
+// Function to send chrome runtime messages with retry logic
+function sendMessageWithRetry(message, maxRetries = 2) {
+  let attempts = 0;
+  
+  function trySendMessage() {
+    attempts++;
+    chrome.runtime.sendMessage(message, function(response) {
+      if (chrome.runtime.lastError) {
+        console.warn('Message send error:', chrome.runtime.lastError.message);
+        
+        // If we have retries left, try again after a delay
+        if (attempts <= maxRetries) {
+          setTimeout(trySendMessage, 500 * attempts); // Increasing delay
+        }
+      }
+    });
+  }
+  
+  trySendMessage();
+}
+
 // Function to delay execution to ensure page is loaded
 function ensurePageLoaded(callback, maxAttempts = 10, interval = 500) {
   let attempts = 0;
@@ -252,11 +247,22 @@ function ensurePageLoaded(callback, maxAttempts = 10, interval = 500) {
   function checkAndExecute() {
     attempts++;
     
-    // If document is fully ready or we've reached max attempts
-    if (document.readyState === 'complete' || attempts >= maxAttempts) {
-      callback();
+    if (document.body) {
+      // Check if main content is loaded
+      const contentLoaded = document.querySelector('.js-container-main') !== null || // Tradera
+                           document.querySelector('[data-testid="item-box-wrapper"]') !== null; // Vinted
+      
+      // If content is loaded or we've reached max attempts
+      if (contentLoaded || attempts >= maxAttempts) {
+        callback();
+      } else {
+        setTimeout(checkAndExecute, interval);
+      }
     } else {
-      setTimeout(checkAndExecute, interval);
+      // Body not available yet, keep waiting
+      if (attempts < maxAttempts) {
+        setTimeout(checkAndExecute, interval);
+      }
     }
   }
   
@@ -293,10 +299,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'brandsUpdated') {
       console.log('Brands updated, re-filtering products...');
       filterProducts();
+      // Send success response
+      sendResponse({ success: true });
     }
     else if (message.action === 'siteSettingsUpdated') {
       console.log('Site settings updated, re-filtering products...');
       filterProducts();
+      // Send success response
+      sendResponse({ success: true });
     }
     else if (message.action === 'requestStats') {
       // Respond with current statistics
@@ -309,6 +319,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   } catch (error) {
     console.error('Error in message listener:', error);
+    // Send error response
+    sendResponse({ error: error.message });
   }
   
   // Return true to indicate we'll respond asynchronously
