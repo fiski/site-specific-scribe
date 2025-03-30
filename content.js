@@ -1,4 +1,3 @@
-
 // Configuration for the observer
 const observerConfig = {
   childList: true,
@@ -236,22 +235,42 @@ function updateFilterStats() {
   }
 }
 
-// Function to send chrome runtime messages with retry logic
+// Improved function to send chrome runtime messages with retry logic
 function sendMessageWithRetry(message, maxRetries = 2) {
   let attempts = 0;
   
   function trySendMessage() {
     attempts++;
-    chrome.runtime.sendMessage(message, function(response) {
-      if (chrome.runtime.lastError) {
-        console.warn('Message send error:', chrome.runtime.lastError.message);
-        
-        // If we have retries left, try again after a delay
-        if (attempts <= maxRetries) {
-          setTimeout(trySendMessage, 500 * attempts); // Increasing delay
+    
+    // Check if runtime is available
+    if (!chrome.runtime) {
+      console.warn('Chrome runtime not available');
+      return;
+    }
+    
+    try {
+      chrome.runtime.sendMessage(message, function(response) {
+        if (chrome.runtime.lastError) {
+          const errorMsg = chrome.runtime.lastError.message;
+          console.warn('Message send error:', errorMsg);
+          
+          // Only retry if the error is about connection and we have retries left
+          if (attempts <= maxRetries && 
+              (errorMsg.includes('Receiving end does not exist') || 
+               errorMsg.includes('connection') || 
+               errorMsg.includes('disconnected'))) {
+            console.log(`Retrying message send (attempt ${attempts}/${maxRetries})`);
+            setTimeout(trySendMessage, 500 * attempts); // Increasing delay
+          }
         }
+      });
+    } catch (err) {
+      console.error('Error in sendMessage:', err);
+      // If it's an unexpected error, still try to retry
+      if (attempts <= maxRetries) {
+        setTimeout(trySendMessage, 500 * attempts);
       }
-    });
+    }
   }
   
   trySendMessage();
@@ -353,12 +372,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         } 
       });
     }
+    
+    // Return true to indicate we want to respond asynchronously
+    return true;
   } catch (error) {
     console.error('Error in message listener:', error);
     // Send error response
     sendResponse({ error: error.message });
+    return true;
   }
-  
-  // Return true to indicate we'll respond asynchronously
-  return true;
+});
+
+// Add event listener for when the extension is unloaded or reloaded
+window.addEventListener('beforeunload', function() {
+  // Clean up the observer to prevent memory leaks
+  if (observer) {
+    observer.disconnect();
+  }
 });
