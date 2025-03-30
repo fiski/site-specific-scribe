@@ -1,4 +1,3 @@
-
 document.addEventListener('DOMContentLoaded', function() {
   // Load saved brands when popup opens
   loadBrands();
@@ -66,10 +65,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('save-import').addEventListener('click', importBrands);
   
   // Listen for statistics updates from content script
-  chrome.runtime.onMessage.addListener(function(message) {
+  chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     if (message.action === 'updateFilterStats') {
       updateStatistics(message.stats);
+      sendResponse({ received: true });
     }
+    return true;
   });
   
   // Request current stats from the active tab
@@ -100,10 +101,24 @@ function updateSiteSettings(site, enabled) {
 
 // Notify content script that site settings have changed
 function notifySiteSettingsChanged() {
-  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'siteSettingsUpdated' });
+  sendMessageToActiveTabs({ action: 'siteSettingsUpdated' });
+}
+
+// Send message to all active tabs with error handling
+function sendMessageToActiveTabs(message) {
+  chrome.tabs.query({ active: true }, function(tabs) {
+    if (tabs.length === 0) {
+      console.warn('No active tabs found');
+      return;
     }
+    
+    tabs.forEach(tab => {
+      chrome.tabs.sendMessage(tab.id, message, function(response) {
+        if (chrome.runtime.lastError) {
+          console.warn(`Error sending message to tab ${tab.id}:`, chrome.runtime.lastError.message);
+        }
+      });
+    });
   });
 }
 
@@ -128,7 +143,6 @@ function toggleTheme(isDark) {
     html.classList.remove('dark');
   }
   
-  // Save theme preference
   chrome.storage.sync.set({ darkMode: isDark });
 }
 
@@ -153,7 +167,6 @@ function loadBrands() {
     const brandsContainer = document.getElementById('brands-container');
     brandsContainer.innerHTML = '';
     
-    // Update the brand count
     const activeCount = data.excludedBrands.length - data.disabledBrands.length;
     document.getElementById('brand-count').textContent = `Excluding ${activeCount} of ${data.excludedBrands.length} brands`;
     
@@ -173,7 +186,6 @@ function loadBrands() {
       const brandControls = document.createElement('div');
       brandControls.className = 'brand-controls';
       
-      // Create toggle switch
       const toggleLabel = document.createElement('label');
       toggleLabel.className = 'toggle-switch';
       
@@ -190,7 +202,6 @@ function loadBrands() {
       toggleLabel.appendChild(toggleInput);
       toggleLabel.appendChild(slider);
       
-      // Create remove button
       const removeButton = document.createElement('span');
       removeButton.className = 'remove-btn';
       removeButton.textContent = '✕';
@@ -211,12 +222,11 @@ function loadBrands() {
 // Add a new brand to excluded list
 function addBrand(brand) {
   chrome.storage.sync.get({ excludedBrands: [], disabledBrands: [] }, function(data) {
-    // Check if brand already exists
     if (!data.excludedBrands.includes(brand)) {
       const updatedBrands = [...data.excludedBrands, brand];
       
       chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
-        loadBrands(); // Refresh the list
+        loadBrands();
         notifyContentScript();
       });
     } else {
@@ -235,7 +245,7 @@ function removeBrand(brand) {
       excludedBrands: updatedBrands,
       disabledBrands: updatedDisabledBrands
     }, function() {
-      loadBrands(); // Refresh the list
+      loadBrands();
       notifyContentScript();
     });
   });
@@ -247,10 +257,8 @@ function toggleBrand(brand, isEnabled) {
     let updatedDisabledBrands;
     
     if (isEnabled) {
-      // Remove from disabled list if enabled
       updatedDisabledBrands = data.disabledBrands.filter(item => item !== brand);
     } else {
-      // Add to disabled list if disabled
       if (!data.disabledBrands.includes(brand)) {
         updatedDisabledBrands = [...data.disabledBrands, brand];
       } else {
@@ -259,7 +267,7 @@ function toggleBrand(brand, isEnabled) {
     }
     
     chrome.storage.sync.set({ disabledBrands: updatedDisabledBrands }, function() {
-      loadBrands(); // Refresh the count
+      loadBrands();
       notifyContentScript();
     });
   });
@@ -270,13 +278,11 @@ function exportBrands() {
   chrome.storage.sync.get({ excludedBrands: [] }, function(data) {
     const brandsText = data.excludedBrands.join('\n');
     
-    // Copy to clipboard
     navigator.clipboard.writeText(brandsText).then(function() {
       alert('Brands list copied to clipboard!');
     }).catch(function(err) {
       console.error('Could not copy text: ', err);
       
-      // Fallback method - create a temporary textarea
       const textarea = document.createElement('textarea');
       textarea.value = brandsText;
       document.body.appendChild(textarea);
@@ -304,7 +310,6 @@ function importBrands() {
     let newBrands = [];
     let duplicates = 0;
     
-    // Filter out duplicates
     brandsToImport.forEach(brand => {
       if (!data.excludedBrands.includes(brand)) {
         newBrands.push(brand);
@@ -313,7 +318,6 @@ function importBrands() {
       }
     });
     
-    // Add new brands to the list
     const updatedBrands = [...data.excludedBrands, ...newBrands];
     
     chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
@@ -326,42 +330,77 @@ function importBrands() {
       }
       
       alert(message);
-      loadBrands(); // Refresh the list
+      loadBrands();
       notifyContentScript();
     });
   });
 }
 
-// Request current statistics from the active tab
+// Request current statistics from the active tab with retry
 function requestCurrentStats() {
   chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'requestStats' }, function(response) {
-        // If we get a response, update the UI
+    if (tabs.length === 0) {
+      console.warn('No active tabs found to request stats from');
+      updateStatistics({ filteredCount: 0, site: null });
+      return;
+    }
+    
+    const activeTab = tabs[0];
+    sendMessageWithRetry(
+      activeTab.id,
+      { action: 'requestStats' },
+      function(response) {
         if (response && response.stats) {
           updateStatistics(response.stats);
+        } else {
+          updateStatistics({ filteredCount: 0, site: null });
         }
-      });
-    }
+      }
+    );
   });
+}
+
+// Send message with retry logic
+function sendMessageWithRetry(tabId, message, callback, maxRetries = 2) {
+  let attempts = 0;
+  
+  function trySendMessage() {
+    attempts++;
+    chrome.tabs.sendMessage(tabId, message, function(response) {
+      if (chrome.runtime.lastError) {
+        console.warn(`Error sending message (attempt ${attempts}):`, chrome.runtime.lastError.message);
+        
+        if (attempts <= maxRetries) {
+          setTimeout(trySendMessage, 500 * attempts);
+        } else if (callback) {
+          callback(null);
+        }
+      } else if (callback) {
+        callback(response);
+      }
+    });
+  }
+  
+  trySendMessage();
 }
 
 // Update statistics in the UI
 function updateStatistics(stats) {
-  if (stats) {
-    let siteInfo = '';
-    if (stats.site) {
-      siteInfo = ` (${stats.site.charAt(0).toUpperCase() + stats.site.slice(1)})`;
-    }
-    document.getElementById('filtered-count').textContent = `Items filtered${siteInfo}: ${stats.filteredCount}`;
+  if (!stats) {
+    document.getElementById('filtered-count').textContent = 'Items filtered: 0';
+    return;
   }
+  
+  let siteInfo = '';
+  if (stats.site) {
+    siteInfo = ` (${stats.site.charAt(0).toUpperCase() + stats.site.slice(1)})`;
+  }
+  
+  const count = stats.filteredCount || 0;
+  document.getElementById('filtered-count').textContent = `Items filtered${siteInfo}: ${count}`;
 }
 
 // Notify content script that brands have been updated
 function notifyContentScript() {
-  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'brandsUpdated' });
-    }
-  });
+  sendMessageToActiveTabs({ action: 'brandsUpdated' });
 }
