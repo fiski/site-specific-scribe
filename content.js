@@ -1,3 +1,4 @@
+
 // Configuration for the observer
 const observerConfig = {
   childList: true,
@@ -72,7 +73,15 @@ function filterProducts() {
       if (currentSite === 'vinted') {
         catalogItems = document.querySelectorAll('[data-testid^="grid-item"]');
       } else if (currentSite === 'tradera') {
-        catalogItems = document.querySelectorAll('.item-card-new');
+        // Target specifically the item-card elements for Tradera
+        catalogItems = document.querySelectorAll('.item-card');
+        
+        // If no item-cards found, try the item-card-new selector as fallback
+        if (catalogItems.length === 0) {
+          catalogItems = document.querySelectorAll('.item-card-new');
+        }
+        
+        console.log(`Found ${catalogItems.length} Tradera items`);
       }
       
       console.log(`Found ${catalogItems.length} items to check on ${currentSite}`);
@@ -98,7 +107,7 @@ function filterProducts() {
           brandButtons.forEach(btn => brandElements.push(btn));
           
           // Also check in the title
-          const titleLink = item.querySelector('a.text-truncate-one-line');
+          const titleLink = item.querySelector('a.text-truncate-one-line, a.item-card-title');
           if (titleLink) {
             brandElements.push(titleLink);
           }
@@ -140,7 +149,7 @@ function filterProducts() {
           // Find and remove the parent container for Tradera
           const parentItemCard = findTraderaItemCard(item);
           if (parentItemCard) {
-            parentItemCard.remove();
+            parentItemCard.style.display = 'none'; // Use style.display none instead of remove
           } else {
             item.style.display = 'none';
           }
@@ -152,6 +161,7 @@ function filterProducts() {
       
       // Update the filtered items count
       filteredItemsCount = currentFilteredCount;
+      console.log(`Setting filtered count to ${filteredItemsCount} for ${currentSite}`);
       updateFilterStats();
     } catch (error) {
       console.error('Error in filterProducts:', error);
@@ -165,14 +175,16 @@ function findTraderaItemCard(element) {
     // Start with the provided element
     let current = element;
     
-    // If not already an item-card-new, find the closest one
-    if (!current.classList.contains('item-card-new')) {
-      current = current.closest('.item-card-new');
+    // If not already an item-card or item-card-new, find the closest one
+    if (!current.classList.contains('item-card') && !current.classList.contains('item-card-new')) {
+      current = current.closest('.item-card, .item-card-new');
       if (!current) return null;
     }
     
-    // Find the parent container (usually a col-* or result-item)
-    const parent = current.closest('.col, .col-md-6, .col-lg-4, .result-item, .slick-slide');
+    // Find the parent container for .item-card
+    // This could be col-* or a direct parent with specific classes
+    const parent = current.closest('.col, .col-md-6, .col-lg-4, .result-item, .item-row');
+    
     return parent || current; // Return parent if found, otherwise the item-card itself
   } catch (error) {
     console.error('Error in findTraderaItemCard:', error);
@@ -189,11 +201,16 @@ function showAllItems() {
         item.style.display = '';
       });
     } else if (currentSite === 'tradera') {
-      // For Tradera we would need to refresh the page to restore removed elements
-      // But we can at least show any hidden items that weren't removed
-      const items = document.querySelectorAll('.item-card-new[style*="display: none"]');
+      // For Tradera show all hidden items
+      const items = document.querySelectorAll('.item-card[style*="display: none"], .item-card-new[style*="display: none"]');
       items.forEach(item => {
         item.style.display = '';
+      });
+      
+      // Also check for parent containers that might be hidden
+      const parentContainers = document.querySelectorAll('.col[style*="display: none"], .col-md-6[style*="display: none"], .col-lg-4[style*="display: none"], .result-item[style*="display: none"], .item-row[style*="display: none"]');
+      parentContainers.forEach(container => {
+        container.style.display = '';
       });
     }
   } catch (error) {
@@ -241,7 +258,7 @@ function sendMessageWithRetry(message, maxRetries = 2) {
 }
 
 // Function to delay execution to ensure page is loaded
-function ensurePageLoaded(callback, maxAttempts = 10, interval = 500) {
+function ensurePageLoaded(callback, maxAttempts = 15, interval = 500) {
   let attempts = 0;
   
   function checkAndExecute() {
@@ -249,19 +266,32 @@ function ensurePageLoaded(callback, maxAttempts = 10, interval = 500) {
     
     if (document.body) {
       // Check if main content is loaded
-      const contentLoaded = document.querySelector('.js-container-main') !== null || // Tradera
-                           document.querySelector('[data-testid="item-box-wrapper"]') !== null; // Vinted
+      let contentLoaded = false;
+      
+      if (currentSite === 'tradera') {
+        contentLoaded = document.querySelector('.item-card') !== null || 
+                         document.querySelector('.item-card-new') !== null;
+      } else if (currentSite === 'vinted') {
+        contentLoaded = document.querySelector('[data-testid="item-box-wrapper"]') !== null;
+      }
       
       // If content is loaded or we've reached max attempts
       if (contentLoaded || attempts >= maxAttempts) {
+        console.log(`Content loaded after ${attempts} attempts`);
         callback();
       } else {
+        if (attempts === maxAttempts - 1) {
+          console.log('Almost reached max attempts, forcing callback...');
+        }
         setTimeout(checkAndExecute, interval);
       }
     } else {
       // Body not available yet, keep waiting
       if (attempts < maxAttempts) {
         setTimeout(checkAndExecute, interval);
+      } else {
+        console.log('Reached max attempts without body, forcing callback...');
+        callback();
       }
     }
   }
@@ -286,6 +316,9 @@ new MutationObserver(() => {
     lastUrl = url;
     console.log('URL changed, filtering products...');
     
+    // Reset counter when URL changes
+    filteredItemsCount = 0;
+    
     // Wait a bit for the page to load content
     setTimeout(() => {
       ensurePageLoaded(filterProducts);
@@ -309,6 +342,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
     }
     else if (message.action === 'requestStats') {
+      // Log current statistics for debugging
+      console.log(`Sending stats: ${filteredItemsCount} items filtered on ${currentSite}`);
+      
       // Respond with current statistics
       sendResponse({ 
         stats: { 
