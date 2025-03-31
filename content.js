@@ -229,6 +229,12 @@ function updateFilterStats() {
       } 
     });
     
+    // Send the count to the background script for the badge
+    sendMessageWithRetry({
+      action: 'updateBadgeCount',
+      count: filteredItemsCount
+    });
+    
     console.log(`[${currentSite}] Filtered items count:`, filteredItemsCount);
   } catch (error) {
     console.error('Error in updateFilterStats:', error);

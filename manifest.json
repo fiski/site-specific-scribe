@@ -18,6 +18,9 @@
     }
   },
   "permissions": ["storage", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": ["*://*.vinted.se/*", "*://*.tradera.com/*"],
