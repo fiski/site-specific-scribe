@@ -395,4 +395,9 @@ window.addEventListener('beforeunload', function() {
   if (observer) {
     observer.disconnect();
   }
+  
+  // Notify background script that we're leaving the filtered site
+  chrome.runtime.sendMessage({ action: 'leavingSite' }, function(response) {
+    // No need to handle response as page is unloading
+  });
 });
