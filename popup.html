@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html class="light">
 <head>
@@ -264,6 +265,26 @@
       gap: 5px;
     }
     
+    .sort-options {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background-color: var(--hover);
+    }
+    
+    .sort-option {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .sort-option input[type="radio"] {
+      margin: 0;
+    }
+    
     small {
       color: var(--text);
       opacity: 0.8;
@@ -300,6 +321,17 @@
         <input type="checkbox" id="tradera-toggle" checked>
         <span class="slider"></span>
       </label>
+    </div>
+  </div>
+  
+  <div class="sort-options">
+    <div class="sort-option">
+      <input type="radio" id="sort-alphabetical" name="sort-method" value="alphabetical" checked>
+      <label for="sort-alphabetical">A-Z</label>
+    </div>
+    <div class="sort-option">
+      <input type="radio" id="sort-latest" name="sort-method" value="latest">
+      <label for="sort-latest">Latest added</label>
     </div>
   </div>
   

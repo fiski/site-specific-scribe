@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', function() {
   // Load saved brands when popup opens
   loadBrands();
@@ -7,6 +8,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize site toggles
   initSiteToggles();
+
+  // Initialize sorting options
+  initSorting();
   
   // Set up the form submit event
   document.getElementById('add-brand-form').addEventListener('submit', function(e) {
@@ -76,6 +80,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // Request current stats from the active tab
   requestCurrentStats();
 });
+
+// Initialize sorting options and set default
+function initSorting() {
+  // Set default sort method if not already set
+  chrome.storage.sync.get({ sortMethod: 'alphabetical' }, function(data) {
+    // Update the selected radio button
+    document.getElementById(`sort-${data.sortMethod}`).checked = true;
+    
+    // Add event listeners to sorting radio buttons
+    document.querySelectorAll('input[name="sort-method"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        if (this.checked) {
+          chrome.storage.sync.set({ sortMethod: this.value }, function() {
+            loadBrands(); // Reload brands with new sorting
+          });
+        }
+      });
+    });
+  });
+}
 
 // Initialize site toggles based on saved settings
 function initSiteToggles() {
@@ -161,9 +185,29 @@ function filterBrandsList(searchText) {
   });
 }
 
+// Sort brands based on selected method
+function sortBrands(brands, method, timestamps) {
+  if (method === 'latest') {
+    // Sort by timestamps (most recent first)
+    return brands.sort((a, b) => {
+      const timeA = timestamps[a] || 0;
+      const timeB = timestamps[b] || 0;
+      return timeB - timeA;
+    });
+  } else {
+    // Default: Alphabetical sorting
+    return brands.sort((a, b) => a.localeCompare(b));
+  }
+}
+
 // Load brands from storage and display them
 function loadBrands() {
-  chrome.storage.sync.get({ excludedBrands: [], disabledBrands: [] }, function(data) {
+  chrome.storage.sync.get({ 
+    excludedBrands: [], 
+    disabledBrands: [],
+    brandTimestamps: {},
+    sortMethod: 'alphabetical'
+  }, function(data) {
     const brandsContainer = document.getElementById('brands-container');
     brandsContainer.innerHTML = '';
     
@@ -175,7 +219,10 @@ function loadBrands() {
       return;
     }
     
-    data.excludedBrands.forEach(function(brand) {
+    // Sort brands based on selected method
+    const sortedBrands = sortBrands(data.excludedBrands, data.sortMethod, data.brandTimestamps);
+    
+    sortedBrands.forEach(function(brand) {
       const brandElement = document.createElement('div');
       brandElement.className = 'brand-item';
       
@@ -221,11 +268,22 @@ function loadBrands() {
 
 // Add a new brand to excluded list
 function addBrand(brand) {
-  chrome.storage.sync.get({ excludedBrands: [], disabledBrands: [] }, function(data) {
+  chrome.storage.sync.get({ 
+    excludedBrands: [], 
+    disabledBrands: [], 
+    brandTimestamps: {} 
+  }, function(data) {
     if (!data.excludedBrands.includes(brand)) {
       const updatedBrands = [...data.excludedBrands, brand];
+      const updatedTimestamps = {...data.brandTimestamps};
       
-      chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
+      // Add timestamp for new brand
+      updatedTimestamps[brand] = Date.now();
+      
+      chrome.storage.sync.set({ 
+        excludedBrands: updatedBrands,
+        brandTimestamps: updatedTimestamps
+      }, function() {
         loadBrands();
         notifyContentScript();
       });
@@ -237,13 +295,22 @@ function addBrand(brand) {
 
 // Remove a brand from excluded list
 function removeBrand(brand) {
-  chrome.storage.sync.get({ excludedBrands: [], disabledBrands: [] }, function(data) {
+  chrome.storage.sync.get({ 
+    excludedBrands: [], 
+    disabledBrands: [],
+    brandTimestamps: {}
+  }, function(data) {
     const updatedBrands = data.excludedBrands.filter(item => item !== brand);
     const updatedDisabledBrands = data.disabledBrands.filter(item => item !== brand);
+    const updatedTimestamps = {...data.brandTimestamps};
+    
+    // Remove timestamp for deleted brand
+    delete updatedTimestamps[brand];
     
     chrome.storage.sync.set({ 
       excludedBrands: updatedBrands,
-      disabledBrands: updatedDisabledBrands
+      disabledBrands: updatedDisabledBrands,
+      brandTimestamps: updatedTimestamps
     }, function() {
       loadBrands();
       notifyContentScript();
@@ -306,13 +373,20 @@ function importBrands() {
     .map(brand => brand.trim())
     .filter(brand => brand.length > 0);
   
-  chrome.storage.sync.get({ excludedBrands: [] }, function(data) {
+  chrome.storage.sync.get({ 
+    excludedBrands: [],
+    brandTimestamps: {}
+  }, function(data) {
     let newBrands = [];
     let duplicates = 0;
+    const now = Date.now();
+    const updatedTimestamps = {...data.brandTimestamps};
     
     brandsToImport.forEach(brand => {
       if (!data.excludedBrands.includes(brand)) {
         newBrands.push(brand);
+        // Add timestamp for new brand
+        updatedTimestamps[brand] = now;
       } else {
         duplicates++;
       }
@@ -320,7 +394,10 @@ function importBrands() {
     
     const updatedBrands = [...data.excludedBrands, ...newBrands];
     
-    chrome.storage.sync.set({ excludedBrands: updatedBrands }, function() {
+    chrome.storage.sync.set({ 
+      excludedBrands: updatedBrands,
+      brandTimestamps: updatedTimestamps
+    }, function() {
       document.getElementById('import-modal').style.display = 'none';
       document.getElementById('import-brands').value = '';
       
