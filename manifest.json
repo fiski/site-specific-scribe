@@ -1,7 +1,7 @@
 
 {
   "manifest_version": 3,
-  "name": "Brand Filter for Vinted and Tradera",
+  "name": "Tradera-Vinted-Filter",
   "version": "1.0.1",
   "description": "Filter out specific clothing brands on Vinted.se and Tradera.com",
   "icons": {
