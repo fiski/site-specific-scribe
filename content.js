@@ -72,13 +72,8 @@ function filterProducts() {
       if (currentSite === 'vinted') {
         catalogItems = document.querySelectorAll('[data-testid^="grid-item"]');
       } else if (currentSite === 'tradera') {
-        // Target specifically the item-card elements for Tradera
-        catalogItems = document.querySelectorAll('.item-card');
-        
-        // If no item-cards found, try the item-card-new selector as fallback
-        if (catalogItems.length === 0) {
-          catalogItems = document.querySelectorAll('.item-card-new');
-        }
+        // Target item cards by ID pattern (item-card-*) or class
+        catalogItems = document.querySelectorAll('[id^="item-card-"], .item-card, .item-card-new');
         
         console.log(`Found ${catalogItems.length} Tradera items`);
       }
@@ -101,11 +96,17 @@ function filterProducts() {
             brandElements.push(brandElement);
           }
         } else if (currentSite === 'tradera') {
-          // For tradera, check both the brand button and the title link
+          // For tradera, check the title element with the new class structure
+          const titleElement = item.querySelector('[class*="item-card_title"]');
+          if (titleElement) {
+            brandElements.push(titleElement);
+          }
+          
+          // Also check brand buttons if they exist
           const brandButtons = item.querySelectorAll('.attribute-buttons-list_attribute__ssoUD');
           brandButtons.forEach(btn => brandElements.push(btn));
           
-          // Also check in the title
+          // And check title links as fallback
           const titleLink = item.querySelector('a.text-truncate-one-line, a.item-card-title');
           if (titleLink) {
             brandElements.push(titleLink);
@@ -174,17 +175,41 @@ function findTraderaItemCard(element) {
     // Start with the provided element
     let current = element;
     
-    // If not already an item-card or item-card-new, find the closest one
+    // If element has an ID starting with item-card-, use it directly
+    if (current.id && current.id.startsWith('item-card-')) {
+      // Look for the parent container - go up to find the grid item container
+      // Look for parent with @container class or go up several levels
+      let parent = current.parentElement;
+      
+      // Go up the DOM tree to find the grid item container
+      // Usually it's 3-4 levels up from the item-card element
+      for (let i = 0; i < 6 && parent; i++) {
+        // Check if this parent contains the @container class or is a grid column
+        if (parent.className && (
+            parent.className.includes('@container') ||
+            parent.className.includes('col-') ||
+            parent.classList.contains('col') ||
+            parent.classList.contains('grid-item')
+        )) {
+          return parent;
+        }
+        parent = parent.parentElement;
+      }
+      
+      // If we couldn't find a specific parent, return the element itself
+      return current;
+    }
+    
+    // Fallback for old structure
     if (!current.classList.contains('item-card') && !current.classList.contains('item-card-new')) {
-      current = current.closest('.item-card, .item-card-new');
+      current = current.closest('.item-card, .item-card-new, [id^="item-card-"]');
       if (!current) return null;
     }
     
-    // Find the parent container for .item-card
-    // This could be col-* or a direct parent with specific classes
-    const parent = current.closest('.col, .col-md-6, .col-lg-4, .result-item, .item-row');
+    // Find the parent container
+    const parent = current.closest('.col, .col-md-6, .col-lg-4, .result-item, .item-row, [class*="@container"]');
     
-    return parent || current; // Return parent if found, otherwise the item-card itself
+    return parent || current;
   } catch (error) {
     console.error('Error in findTraderaItemCard:', error);
     return null;
